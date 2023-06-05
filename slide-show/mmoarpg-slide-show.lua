@@ -6,10 +6,8 @@
 --  Custom image credit output
 --  Jank impossible to desync mode (regularlly save and load image settings to prevent desyncs)
 -- HIGH PRI:
---  Script should never resize slideshow
---  Easy setup where pressing a single button spawn in text and slideshow
 --  Rename shit so people don't laugh at my code
---  Copy bounds settings into slideshow aspect ratio to keep things centered
+--  Copy bounds settings into slideshow aspect ratio to keep things centered (I think I did this?)
 
 obs = obslua
 text_label = ""
@@ -25,6 +23,7 @@ image_array_size = 0
 settings_num_of_bag = 200
 settings_num_of_images = 20
 auto_move = true
+auto_start = true
 
 allowed_extensions = {"bmp", "tga", "png", "jpeg", "jpg", "jxr", "gif", "webp"}
 
@@ -329,7 +328,7 @@ function force_stop()
     end
     obs.obs_source_release(gal_source)
     
-    running=false
+    is_running=false
 end
 
 
@@ -346,24 +345,38 @@ function text_update()
 end
 
 function on_event(event) --for automatic start in the future
+    if is_running then
+        print("running")
+    end
+    if (event == obs.OBS_FRONTEND_EVENT_RECORDING_STARTED or event == obs.OBS_FRONTEND_EVENT_STREAMING_STARTED) and not is_streaming and not is_recording and not is_running then
+        if auto_start then
+            force_run()
+        end
+	end
     if event == obs.OBS_FRONTEND_EVENT_RECORDING_STARTED then
         is_recording=true
+        print("is_recording true")
     end
     if event == obs.OBS_FRONTEND_EVENT_RECORDING_STOPPED then
         is_recording=false
+        print("is_recording false")
     end
     if event == obs.OBS_FRONTEND_EVENT_STREAMING_STARTED then
         is_streaming=true
+        print("is_streaming true")
     end
     if event == obs.OBS_FRONTEND_EVENT_STREAMING_STOPPED then
         is_streaming=false
+        print("is_streaming false")
     end
-    if (event == obs.OBS_FRONTEND_EVENT_RECORDING_STARTED or event == obs.OBS_FRONTEND_EVENT_STREAMING_STARTED) and not is_streaming and not is_recording and not is_running then
-        force_run()
-	end
 	if (event == obs.OBS_FRONTEND_EVENT_STREAMING_STOPPED or event == obs.OBS_FRONTEND_EVENT_RECORDING_STOPPED) and not is_streaming and not is_recording then
-		force_stop()
+		if auto_start then
+            force_stop()
+        end
 	end
+    if is_running then
+        print("running 2")
+    end
 end
 
 
@@ -373,6 +386,7 @@ function script_defaults(settings)
     obs.obs_data_set_default_string(settings, "source", "Setup, then select 'art slideshow'")
     obs.obs_data_set_default_string(settings, "source2", "Setup, then select 'art credits'")
     obs.obs_data_set_default_bool(settings, "auto_move", true)
+    obs.obs_data_set_default_bool(settings, "auto_start", true)
 end
 
 
@@ -411,6 +425,7 @@ function script_properties()
     local welcome_button = obs.obs_properties_add_button(props, "welcome_button", "Force run", force_run)
     local welcome2_button = obs.obs_properties_add_button(props, "welcome_button2", "Force stop", force_stop)
     local bool_button = obs.obs_properties_add_bool(props, "auto_move", "Auto move credit text")
+    local bool_button = obs.obs_properties_add_bool(props, "auto_start", "Auto start/stop slideshow")
 
 	return props
 end
@@ -424,6 +439,7 @@ function script_update(settings)
     settings_num_of_images = obs.obs_data_get_int(settings, "num_of_images")
     settings_num_of_bag = obs.obs_data_get_int(settings, "bag_num")
     auto_move = obs.obs_data_get_bool(settings, "auto_move")
+    auto_start = obs.obs_data_get_bool(settings, "auto_start")
     local properties = obs.obs_source_properties(obs.obs_get_source_by_name(image_source))
     local windowProp = obs.obs_properties_get(properties, "slideshow")
     local propName = obs.obs_property_name(windowProp)
