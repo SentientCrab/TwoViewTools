@@ -500,9 +500,9 @@ function script_properties()
 	local props = obs.obs_properties_create()
     
     local slide_show_UUID_prop = obs.obs_properties_add_text(props, "slide_show_UUID", "private slideshow UUID", obs.OBS_TEXT_DEFAULT)
-    obs.obs_property_set_visible(slide_show_UUID, false)
+    obs.obs_property_set_visible(slide_show_UUID_prop, false)
     local slide_text_UUID_prop = obs.obs_properties_add_text(props, "slide_text_UUID", "private slideshow text UUID", obs.OBS_TEXT_DEFAULT)
-    obs.obs_property_set_visible(slide_text_UUID, false)
+    obs.obs_property_set_visible(slide_text_UUID_prop, false)
     if setup_pressed then
         setup_pressed = false
     end
