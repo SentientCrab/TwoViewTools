@@ -1,6 +1,6 @@
 -- Selects random recent art and credits it
 -- Author: @SentientCrab
--- Version 0.2
+-- Version 0.3
 -- Requires OBS 29.1.1+ (obs_get_source_by_uuid)
 -- Todo:
 --  Regex for image data to credit pieces
@@ -25,11 +25,16 @@ settings_num_of_images = 20
 settings_max_of_artist = -1
 auto_move = true
 auto_start = true
+slideshow_scene_item = nil
 
 slide_text_UUID = ""
 slide_show_UUID = ""
 setup_pressed = false
-eat_signal = true
+is_slide_changing = false
+
+set_callbacks = false
+
+order_helper = 1
 
 
 setting_ref = nil
@@ -67,6 +72,19 @@ function get_source_scene_item(source_name) --obs is very cringe and needs the s
 	return nil
 end
 
+function get_source_scene(source_name) --obs is very cringe and needs the scene that an object is in, but won't give you the info you need. This may be very slow if you have a bunch of scenes
+    local scene_names = obs.obs_frontend_get_scene_names()
+    for i, name in ipairs(scene_names) do
+		local scene_to_eval = obs.obs_get_scene_by_name(scene_names[i])
+        local scene_item = obs.obs_scene_find_source_recursive(scene_to_eval, source_name)
+        if scene_item ~= nil then
+		    return scene_to_eval
+        end
+		obs.obs_scene_release(scene_to_eval)
+    end
+	return nil
+end
+
 function get_scene_item_by_id(source_id) --obs is very cringe and needs the scene that an object is in, but won't give you the info you need. This may be very slow if you have a bunch of scenes
     local scene_names = obs.obs_frontend_get_scene_names()
     for i, name in ipairs(scene_names) do
@@ -81,7 +99,6 @@ function get_scene_item_by_id(source_id) --obs is very cringe and needs the scen
 end
 
 
-
 function get_current_scene()--even more absurd you can't get the current scene without shenanigans
     local current_scene = obs.obs_frontend_get_current_scene()
     local to_return = obs.obs_get_scene_by_name(obs.obs_source_get_name(current_scene))
@@ -91,7 +108,42 @@ end
 
 
 function setup_scene(props, prop)--used for spawning in the text and slideshow
+    if is_running then
+        force_stop()
+    end
     local current_scene = get_current_scene()
+         
+    local slide_name = "art slideshow"
+    local slide_source = obs.obs_source_create("slideshow", slide_name, nil, nil)
+    local slide_settings = obs.obs_source_get_settings(slide_source)
+    
+    obs.obs_scene_add(current_scene, slide_source)
+    
+	slide_show_UUID = obs.obs_source_get_uuid(slide_source)
+    obs.obs_data_set_string(setting_ref, "slide_show_UUID", slide_show_UUID)
+    obs.obs_data_set_string(setting_ref, "source", obs.obs_source_get_name(slide_source))
+    
+    local slide_sceneitem = obs.obs_scene_find_source_recursive(current_scene, obs.obs_source_get_name(slide_source))
+    local tmp_vec4 = obs.vec2()
+    tmp_vec4.x=1440
+    tmp_vec4.y=227
+    obs.obs_sceneitem_set_pos(slide_sceneitem, tmp_vec4)
+    local tmp_vec5 = obs.vec2()
+    
+    obs.obs_sceneitem_set_alignment(slide_sceneitem, 4)--magic number fucking bullshit because you can't actually bit or shit, it's just random enums
+    obs.obs_sceneitem_set_bounds_type(slide_sceneitem, 3)
+    obs.obs_sceneitem_set_bounds_alignment(slide_sceneitem, 0)--this is bottom center
+    
+    local tmp_vec6 = obs.vec2()
+    tmp_vec6.x=963
+    tmp_vec6.y=853
+    obs.obs_sceneitem_set_bounds(slide_sceneitem, tmp_vec6)
+    
+    obs.obs_data_set_string(slide_settings, "use_custom_size", "963x853")
+    obs.obs_source_update(slide_source, slide_settings)
+	obs.obs_data_release(slide_settings)
+    obs.obs_source_release(slide_source)
+    
     local text_name = "art credits"
     local text_settings = obs.obs_data_create_from_json('{"font":{"face":"Arial","style":"Regular","size":100,"flags":0},"text":""}')
     local text_source = obs.obs_source_create("text_gdiplus", text_name, text_settings, nil)
@@ -122,39 +174,6 @@ function setup_scene(props, prop)--used for spawning in the text and slideshow
     obs.obs_source_update(text_source, text_settings)
 	obs.obs_data_release(text_settings)
     obs.obs_source_release(text_source)
-    
-    
-    
-    local slide_name = "art slideshow"
-    local slide_settings = obs.obs_data_create()--pretty sure pippa's previous settings were all default :pipSmug:    
-    obs.obs_data_set_string(slide_settings, "use_custom_size", "963x853")
-    local slide_source = obs.obs_source_create("slideshow", slide_name, slide_settings, nil)
-    
-    obs.obs_scene_add(current_scene, slide_source)
-    
-	slide_show_UUID = obs.obs_source_get_uuid(slide_source)
-    obs.obs_data_set_string(setting_ref, "slide_show_UUID", slide_show_UUID)
-    obs.obs_data_set_string(setting_ref, "source", obs.obs_source_get_name(slide_source))
-    
-    local slide_sceneitem = obs.obs_scene_find_source_recursive(current_scene, obs.obs_source_get_name(slide_source))
-    local tmp_vec4 = obs.vec2()
-    tmp_vec4.x=1440
-    tmp_vec4.y=227
-    obs.obs_sceneitem_set_pos(slide_sceneitem, tmp_vec4)
-    local tmp_vec5 = obs.vec2()
-    
-    obs.obs_sceneitem_set_alignment(slide_sceneitem, 4)--magic number fucking bullshit because you can't actually bit or shit, it's just random enums
-    obs.obs_sceneitem_set_bounds_type(slide_sceneitem, 3)
-    obs.obs_sceneitem_set_bounds_alignment(slide_sceneitem, 0)--this is bottom center
-    
-    local tmp_vec6 = obs.vec2()
-    tmp_vec6.x=963
-    tmp_vec6.y=853
-    obs.obs_sceneitem_set_bounds(slide_sceneitem, tmp_vec6)
-    
-    obs.obs_source_update(slide_source, slide_settings)
-	obs.obs_data_release(slide_settings)
-    obs.obs_source_release(slide_source)
     
     obs.obs_scene_release(current_scene)
     
@@ -230,23 +249,14 @@ function get_artist_name(fullpath) --extracts artist name from ab's art archive 
 end
 
 function force_run()
-    print("ran force")
-	--print(obs.obs_data_get_string(settings, "slide_text_UUID"))
-    force_stop()
-    --local source = obs.obs_get_source_by_name(slideshow_label)
-    --local text_source = obs.obs_get_source_by_name(text_label)
-    --print("iosdjaios")
-    --print(slide_show_UUID)
-    --print(slide_text_UUID)
-	--if slide_show_UUID == "" or slide_text_UUID == "" or slide_show_UUID==nil then
-	--	error("ERROR: Run setup or select the slideshow/text field")
-	--end
+    print("Running slideshow")
+    clear_slideshow()
 	
     local source = obs.obs_get_source_by_uuid(slide_show_UUID)
     local text_source = obs.obs_get_source_by_uuid(slide_text_UUID)
     local threw_error = false
     if source == nil then
-        error("SLIDESHOW ERROR: can't find slideshow. Either not selected or deleted.")
+        error("SLIDESHOW ERROR: can't find slideshow. Either not set or deleted.")
         if text_source ~= nill then
             local settings = obs.obs_source_get_settings(text_source)
             obs.obs_data_set_string(settings, "text", "")
@@ -257,7 +267,7 @@ function force_run()
     end
     
     if text_source == nil then
-        error("SLIDESHOW ERROR: can't find credit text. Either not selected or deleted.")
+        error("SLIDESHOW ERROR: can't find credit text. Either not set or deleted.")
         if source ~= nil then
             local files_data_array = obs.obs_data_get_array(temp_files, "files")
             for k in pairs (image_array) do
@@ -267,27 +277,34 @@ function force_run()
         end
         threw_error=true
     end
+    if image_dir == "" then
+        error("SLIDESHOW ERROR: art dir hasn't been set")
+        threw_error=true
+    end
     obs.obs_source_release(text_source)
     if threw_error then--get out if things are peachy
-        --print("We breaking free")
         obs.obs_source_release(source)
         return false
     end
-    local p = io.popen('dir "'..image_dir..'" /o-d /B')  --Open directory look for files, save data in p. By giving '-type f' as parameter, it returns all files.
+    local p = io.popen('dir "'..image_dir..'" /o-d /B')  --Open directory look for files, save data in p
     local list_of_files = {}                             --Shows path as "C:\WINDOWS\system32\cmd.exe" username isn
     local current_index = 0
     for file in p:lines() do                         --Loop through all files
+        local lower_string = string.lower(file)
         for i = 1, #allowed_extensions, 1 do        --Make sure it's a valid extension
-            if string.find(string.lower(file), "[.]"..allowed_extensions[i].."$") ~= nil then
+            if string.find(lower_string, "[.]"..allowed_extensions[i].."$") ~= nil then
                 current_index = current_index + 1
                 list_of_files[current_index] = file
                 break
             end
         end
         if settings_num_of_bag > 0 and current_index == settings_num_of_bag then break end
-        --number and day checks
     end
     p:close()
+    if #list_of_files == 0 then
+        error("SLIDESHOW ERROR: no images found in art dir")
+        return false
+    end
     shuffle(list_of_files)
     --local artist_table = {}
     local json_str = "{\"files\":["
@@ -295,19 +312,22 @@ function force_run()
     artist_list = {}
     for i = 1, #list_of_files, 1 do
         local skip = false
-        local artist_name = get_artist_name("/"..list_of_files[i])
         --if not list_contains(artist_list, list_of_files[i]) then                              --anon bypasses artist list because there's no way to tell if they're different people
-        if settings_max_of_artist > 0 and artist_name ~= "anon" then --do artist checks
-            local val = artist_list[artist_name]
-            if val == nil or val < settings_max_of_artist then
-                if val == nil then val=0 end
-                artist_list[artist_name] = val + 1
-            else
-                skip = true
+        if settings_max_of_artist > 0 then
+            local artist_name = get_artist_name("/"..list_of_files[i])
+            if artist_name ~= "anon" then --do artist checks
+                local val = artist_list[artist_name]
+                if val == nil or val < settings_max_of_artist then
+                    if val == nil then val=0 end
+                    artist_list[artist_name] = val + 1
+                else
+                    skip = true
+                end
             end
         end
         if not skip then
-            json_str = json_str..[[{"hidden":false,"selected":false,"value":"]]..image_dir.."/"..list_of_files[i]..[["},]]
+            image_array[j] = image_dir.."/"..list_of_files[i]
+            json_str = json_str..[[{"hidden":false,"selected":false,"value":"]]..image_array[j]..[["},]]
             --artist_list[j] = list_of_files[i]
             j = j + 1
         end
@@ -317,15 +337,17 @@ function force_run()
     json_str = json_str.."]}"
     local temp_files = obs.obs_data_create_from_json(json_str)
     local files_data_array = obs.obs_data_get_array(temp_files, "files")
-    for k in pairs (image_array) do
-        image_array [k] = nil
-    end
+    --for k in pairs (image_array) do
+    --    image_array [k] = nil
+    --end
     
     
     local settings = obs.obs_source_get_settings(source)
     --copy slide show's bounds into slide show aspect ratio
     --local scene_item = get_source_scene_item(slideshow_label)
     local scene_item = get_source_scene_item(uuid_to_name(slide_show_UUID))
+    obs.obs_sceneitem_addref(scene_item)
+    slideshow_scene_item = scene_item
     if scene_item == nil then
         error("SLIDE SHOW ERROR: can't find slideshow scene item")
     end
@@ -348,90 +370,236 @@ function force_run()
     end
         
     obs.obs_data_set_array(settings, "files", files_data_array)
-    obs.obs_data_set_string(settings, "use_custom_size", bounds.x.."x"..bounds.y)
+    obs.obs_data_set_string(settings, "use_custom_size", math.floor(bounds.x).."x"..math.floor(bounds.y))
     obs.obs_source_update(source, settings)
     obs.obs_data_array_release(files_data_array)
     obs.obs_data_release(temp_files)
-    
-    local slide_time = obs.obs_data_get_int(settings, "slide_time")
-    local transition_speed = obs.obs_data_get_int(settings, "transition_speed")
-    local files_aray = obs.obs_data_get_array(settings,"files")
-    image_array_size = 0
-    image_index = 0
-    for i= 0, obs.obs_data_array_count(files_aray)-1, 1
-    do
-        local current_object = obs.obs_data_array_item(files_aray, i)
-        image_array[i] = obs.obs_data_get_string(current_object, "value")
-        image_array_size = image_array_size + 1
-    end
-    obs.obs_source_update(source, settings)
-    obs.timer_add(text_update, transition_speed+slide_time)
+    --obs.obs_data_release(settings)
+    --
+    --settings = obs.obs_source_get_settings(source)
+    --if obs.obs_data_save_json(settings, "H:\\Program Files (x86)\\obs-studio\\data\\obs-plugins\\frontend-tools\\scripts\\dump5.json") then
+    --    print("true")
+    --end
+    --local slide_time = obs.obs_data_get_int(settings, "slide_time")
+    --local transition_speed = obs.obs_data_get_int(settings, "transition_speed")
+    --local files_aray = obs.obs_data_get_array(settings,"files")
+    ----image_array_size = 0
+    --image_index = 0
+    --for i= 0, obs.obs_data_array_count(files_aray)-1, 1
+    --do
+    --    local current_object = obs.obs_data_array_item(files_aray, i)
+    --    image_array[i] = obs.obs_data_get_string(current_object, "value")
+    --    --image_array_size = image_array_size + 1
+    --end
+    --obs.obs_source_update(source, settings)
+    --obs.timer_add(text_update, transition_speed+slide_time)
     text_update()
     obs.obs_data_release(settings)
     
     
     --print("dioasj"..obs.obs_source_get_name(source))
-    --gsh = obs.obs_source_get_signal_handler(source)
-    --eat_signal = true
-    --obs.signal_handler_connect(gsh, "update", update_helper)--infinite loop
+    is_slide_changing = false
+    if set_callbacks == false then
+        --print("setting callbacks")
+        gsh = obs.obs_source_get_signal_handler(source)
+        
+        obs.signal_handler_connect(gsh, "update", source_update)
+        obs.signal_handler_connect(gsh, "slide_changed", slide_changed)
+        obs.signal_handler_connect(gsh, "media_next", media_next)
+        obs.signal_handler_connect(gsh, "media_previous", media_prev)
+        obs.signal_handler_connect(gsh, "media_restart", media_restart)
+        obs.signal_handler_connect(gsh, "media_stopped", media_stopped)
+        local scene = get_source_scene(uuid_to_name(slide_show_UUID))
+        --if scene ~= nil then
+        --    print("got scnee")
+        --else
+        --    print("no scene")
+        --end
+        sceneThing = obs.obs_source_get_signal_handler(obs.obs_scene_get_source(scene))
+        
+        --aksopd = obs.obs_source_get_signal_handler(get_source_scene_item("art slideshow"))
+        obs.signal_handler_connect(sceneThing, "item_transform", item_transform)
+        obs.obs_scene_release(scene)
+        --local scene_item = get_source_scene_item(uuid_to_name(slide_show_UUID))
+        --local adisjdis = obs.obs_get_signal_handler()
+        --obs.signal_handler_connect_global(gsh, signals)
+        --obs.signal_handler_connect_global(sceneThing, signals)
+        --obs.signal_handler_connect_global(sceneThing, signals)
+        set_callbacks = true
+    end
+    
     
     obs.obs_source_release(source)
     is_running = true
     --image_array
 end
 
-function update_helper(sourc)
-    if eat_signal == false then
-        force_run()
-    else
-        eat_signal = false
-    end
+function signals(a)
+    print(a)
 end
 
-function force_stop()
-    obs.timer_remove(text_update)
-    --local text_source = obs.obs_get_source_by_name(text_label)
+function clear_slideshow()
     local text_source = obs.obs_get_source_by_uuid(slide_text_UUID)
     if text_source ~= nil then
         local settings = obs.obs_source_get_settings(text_source)
         obs.obs_data_set_string(settings, "text", "")
         obs.obs_source_update(text_source, settings)
         obs.obs_data_release(settings)
+        obs.obs_source_release(text_source)
     else
-        print("nil text")
+        error("nil text")
     end
-    obs.obs_source_release(text_source)
-    --local gal_source = obs.obs_get_source_by_name(slideshow_label)
     local gal_source = obs.obs_get_source_by_uuid(slide_show_UUID)
     if gal_source ~= nil then
         local settings = obs.obs_source_get_settings(gal_source)
         obs.obs_data_set_array(settings, "files", obs.obs_data_get_default_array(settings, "files"))
         obs.obs_source_update(gal_source, settings)
         obs.obs_data_release(settings)
+        --obs.obs_source_media_stop(gal_source)
+        obs.obs_source_release(gal_source)
     else
-        print("missing slideshow")
+        error("missing slideshow")
     end
-    obs.obs_source_release(gal_source)
-    
+end
+
+function fix_stupid_changing()
+    if is_slide_changing == false then
+        obs.remove_current_callback()
+        force_stop()
+    end
+end
+
+function force_stop()
+    --print("set_callbacks "..set_callbacks)
+    --if is_slide_changing==true then
+    --    print("slide is changing")
+    --    obs.timer_add(fix_stupid_changing, 200)
+    --    return false
+    --end
+    print("Stopping slideshow")
+    local gal_source = obs.obs_get_source_by_uuid(slide_show_UUID)
+    if set_callbacks == true and gal_source ~= nil then
+        gsh = obs.obs_source_get_signal_handler(gal_source)
+        obs.signal_handler_disconnect(gsh, "update", source_update)
+        obs.signal_handler_disconnect(gsh, "slide_changed", slide_changed)
+        obs.signal_handler_disconnect(gsh, "media_next", media_next)
+        obs.signal_handler_disconnect(gsh, "media_previous", media_prev)
+        obs.signal_handler_disconnect(gsh, "media_restart", media_restart)
+        obs.signal_handler_disconnect(gsh, "media_stopped", media_stopped)
+        --obs.signal_handler_disconnect_global(gsh, signals)
+        
+        local scene = get_source_scene(uuid_to_name(slide_show_UUID))
+        sceneThing = obs.obs_source_get_signal_handler(obs.obs_scene_get_source(scene))
+        obs.signal_handler_disconnect(sceneThing, "item_transform", item_transform)
+        obs.obs_source_release(gal_source)
+        obs.obs_scene_release(scene)
+        obs.obs_sceneitem_release(slideshow_scene_item)
+        set_callbacks = false
+    end
+    clear_slideshow()
+
     is_running=false
 end
 
 
 function text_update()
-    --local source = obs.obs_get_source_by_name(text_label)
     local source = obs.obs_get_source_by_uuid(slide_text_UUID)
     local settings = obs.obs_source_get_settings(source)
-    local slides = obs.obs_get_source_by_uuid(slide_show_UUID)
-    --local thing = slides.obs_get_video()--obs.video_output_get_info(slides)
-    --print(thing.name)
-    obs.obs_source_release(slides)
     local name = get_artist_name(image_array[image_index])
     obs.obs_data_set_string(settings, "text", name)
     obs.obs_source_update(source, settings)
-    image_index = 1 + image_index
-    image_index = image_index % image_array_size
     obs.obs_data_release(settings)
     obs.obs_source_release(source)
+end
+
+function item_transform(calldata)
+    local gal_source = obs.obs_get_source_by_uuid(slide_show_UUID)
+    local settings = obs.obs_source_get_settings(gal_source)
+    if slideshow_scene_item == nil then
+        error("SLIDE SHOW ERROR: can't find slideshow scene item")
+    end
+    local bounds = obs.vec2()
+    obs.obs_sceneitem_get_bounds(slideshow_scene_item, bounds)
+    bounds.x = math.floor(bounds.x)--if the slideshow is in a group the bounds get floating points which cause issues for this setup
+    bounds.y = math.floor(bounds.y)--I hate obs
+    if obs.obs_data_get_string(settings, "use_custom_size") ~= bounds.x.."x"..bounds.y then
+        obs.obs_data_set_string(settings, "use_custom_size", bounds.x.."x"..bounds.y)
+        obs.obs_source_update(gal_source, settings)
+        obs.obs_sceneitem_set_bounds(slideshow_scene_item, bounds)
+    end
+    obs.obs_data_release(settings)
+    obs.obs_source_release(gal_source)
+end
+
+function slide_changed()
+    is_slide_changing = true --sometimes media_next gets called when the slide doesn't actually change, need this to keep things sane
+end
+
+function media_next()
+    if is_slide_changing == true then
+        image_index = 1 + image_index
+        image_index = image_index % image_array_size
+        text_update()
+        is_slide_changing=false
+    end
+    local gal_source = obs.obs_get_source_by_uuid(slide_show_UUID)
+    obs.obs_source_release(gal_source)
+end
+
+function media_prev()
+    if is_slide_changing == true then
+        image_index = image_index - 1 
+        image_index = image_index % image_array_size
+        text_update()
+        is_slide_changing=false
+    end
+end
+
+function media_restart()
+    is_running = true
+    image_index = 0
+    text_update()
+end
+
+function media_stopped()
+    local source = obs.obs_get_source_by_uuid(slide_text_UUID)
+    local settings = obs.obs_source_get_settings(source)
+    obs.obs_data_set_string(settings, "text", "")
+    obs.obs_source_update(source, settings)
+    obs.obs_data_release(settings)
+    
+    obs.obs_source_media_stop(source)
+    obs.obs_source_release(source)
+    is_running = false
+end
+
+function source_update() --update
+    is_slide_changing=false
+    while #image_array ~= 0 do rawset(image_array, #image_array, nil) end
+    local gal_source = obs.obs_get_source_by_uuid(slide_show_UUID)
+    local settings = obs.obs_source_get_settings(gal_source)
+    local file_list = obs.obs_data_get_array(settings, "files")
+    for i = 1, obs.obs_data_array_count(file_list), 1 do
+        local item = obs.obs_data_array_item(file_list, i)
+        local s = obs.obs_data_get_string(item, "value")
+        if s ~= "" then
+            image_array[i]=obs.obs_data_get_string(item, "value")
+        end
+        --print(obs.obs_data_get_string(item, "value"))
+        obs.obs_data_release(item)
+    end
+    
+    ph = obs.obs_source_get_proc_handler(gal_source)
+    cd = obs.calldata()
+    obs.proc_handler_call(ph, "total_files", cd)    
+    image_array_size = obs.calldata_int(cd, "total_files")
+    obs.calldata_free(cd)
+    obs.obs_source_release(gal_source)
+    --print(artist_list)
+    obs.obs_data_array_release(file_list)
+    obs.obs_data_release(settings)
+    image_index = 0
+    text_update()
 end
 
 function on_event(event) --for automatic start in the future
@@ -442,28 +610,41 @@ function on_event(event) --for automatic start in the future
 	end
     if event == obs.OBS_FRONTEND_EVENT_RECORDING_STARTED then
         is_recording=true
-        print("is_recording true")
+        --print("is_recording true")
     end
     if event == obs.OBS_FRONTEND_EVENT_RECORDING_STOPPED then
         is_recording=false
-        print("is_recording false")
+        --print("is_recording false")
     end
     if event == obs.OBS_FRONTEND_EVENT_STREAMING_STARTED then
         is_streaming=true
-        print("is_streaming true")
+        --print("is_streaming true")
     end
     if event == obs.OBS_FRONTEND_EVENT_STREAMING_STOPPED then
         is_streaming=false
-        print("is_streaming false")
+        --print("is_streaming false")
     end
 	if (event == obs.OBS_FRONTEND_EVENT_STREAMING_STOPPED or event == obs.OBS_FRONTEND_EVENT_RECORDING_STOPPED) and not is_streaming and not is_recording then
 		if auto_start then
             force_stop()
         end
 	end
-    if event == obs.OBS_FRONTEND_EVENT_EXIT then
-        force_stop()
+    if event == obs.OBS_FRONTEND_EVENT_FINISHED_LOADING then
+        if slide_text_UUID ~= nil then
+            force_stop()
+        end
     end
+    
+    --if event == obs.OBS_FRONTEND_EVENT_SCRIPTING_SHUTDOWN then
+    --    clear_slideshow()
+    --    force_stop()
+    --    if setting_ref ~= nil then
+    --        obs.obs_data_release(setting_ref)
+    --    end
+    --end
+    --if event == obs.OBS_FRONTEND_EVENT_EXIT then
+    --    force_stop()
+    --end
 end
 
 
@@ -581,8 +762,8 @@ function script_properties()
 	return props
 end
 
-
 function script_update(settings)
+    order_helper = order_helper * 3
 	--print("update called")
     --local text_source = obs.obs_get_source_by_uuid(slide_text_UUID)
     --print(obs.obs_source_get_name(text_source))
@@ -615,7 +796,7 @@ function script_update(settings)
     auto_move = obs.obs_data_get_bool(settings, "auto_move")
     auto_start = obs.obs_data_get_bool(settings, "auto_start")
 
-
+    
     ----local properties = obs.obs_source_properties(obs.obs_get_source_by_name(slideshow_label))
     ----local windowProp = obs.obs_properties_get(properties, "slideshow")
     ----local propName = obs.obs_property_name(windowProp)
@@ -631,17 +812,30 @@ function script_update(settings)
     end
 end
 
+--function script_save()--apparently this is only called when obs is shutting down, could cause random stops otherwise
+--    print("saving")
+--    force_stop()
+--end
+
 function script_description()
 	return "Selects random recent art and credits it\nPippa love ^-^ 🔌🐰"
 end
 
 function script_load(settings)
+    
+    slide_text_UUID = obs.obs_data_get_string(settings, "slide_text_UUID")
+    slide_show_UUID = obs.obs_data_get_string(settings, "slide_show_UUID")
+    
+    --if slide_text_UUID ~= nil then
+    --    force_stop()
+    --end
+    
+    order_helper = order_helper + 2
 	obs.obs_frontend_add_event_callback(on_event)
     math.randomseed(os.time())
 end
 
 function script_unload()
-    force_stop()
     if setting_ref ~= nil then
         obs.obs_data_release(setting_ref)
     end
