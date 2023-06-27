@@ -447,7 +447,7 @@ function clear_slideshow()
         obs.obs_data_release(settings)
         obs.obs_source_release(text_source)
     else
-        error("nil text")
+        print("nil text")
     end
     local gal_source = obs.obs_get_source_by_uuid(slide_show_UUID)
     if gal_source ~= nil then
@@ -458,7 +458,7 @@ function clear_slideshow()
         --obs.obs_source_media_stop(gal_source)
         obs.obs_source_release(gal_source)
     else
-        error("missing slideshow")
+        print("missing slideshow")
     end
 end
 
